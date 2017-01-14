@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from random import random, randrange
+from random import random, randrange, choice
 
 from networkx import DiGraph
 from networkx.drawing.nx_agraph import to_agraph as to_dot, write_dot
@@ -118,9 +118,92 @@ def generate_structure(has_branches, has_loops):
     cfg.simplify()
     return cfg
 
+class ExpressionNode:
+    def __init__(self, value):
+        self.value = value
+        self.parent = None
+        self.children = []
+        self.height = 1
+    @property
+    def op_type(self):
+        if self.value in ('+', '-'):
+            return 'addsub'
+        elif self.value in ('*', '/'):
+            return 'muldiv'
+        else:
+            return 'number'
+    def add_child(self, child):
+        self.children.append(child)
+        child.parent = self
+        self.height = max(child.height for child in self.children) + 1
+        return child
+    def to_structure_string(self, depth=0):
+        result = depth * '  ' + str(self.value) + '\n'
+        if self.children:
+            result += self.children[0].to_structure_string(depth + 1)
+            result += self.children[1].to_structure_string(depth + 1)
+        return result
+    def to_paren_string(self):
+        if self.children:
+            result = ''
+            result += self.children[0].to_paren_string()
+            result += ' ' + str(self.value) + ' '
+            result += self.children[1].to_paren_string()
+            return '(' + result + ')'
+        else:
+            return str(self.value)
+    def to_string(self):
+        if self.children:
+            result = ''
+            if (self.children[0].op_type == 'number' or
+                (self.children[0].op_type == self.op_type and self.value != '/')):
+                result += self.children[0].to_string()
+            else:
+                result += '(' + self.children[0].to_string() + ')'
+            result += ' ' + str(self.value) + ' '
+            if self.children[1].op_type == 'number':
+                result += self.children[1].to_string()
+            elif self.children[1].op_type == self.op_type and self.value not in ('-', '/'):
+                result += self.children[1].to_string()
+            else:
+                result += '(' + self.children[1].to_string() + ')'
+            return result
+        else:
+            return str(self.value)
+
+def generate_expression(probs, min_depth=0, max_depth=3, depth=0):
+    ops_map = [
+        ('*', '/'),
+        ('+', '-'),
+    ]
+    rand = random()
+    if depth < min_depth:
+        rand *= probs[-1]
+    if depth < max_depth:
+        for i, ops in enumerate(ops_map):
+            if rand < probs[i]:
+                op = ExpressionNode(choice(ops))
+                op.add_child(generate_expression(probs, min_depth, max_depth, depth + 1))
+                op.add_child(generate_expression(probs, min_depth, max_depth, depth + 1))
+                return op
+    node = ExpressionNode(randrange(1, 10))
+    return node
+
+def generate_valid_expression(probs, min_depth=0, max_depth=3):
+    while True:
+        expr_node = generate_expression(probs, min_depth, max_depth)
+        expr = expr_node.to_string()
+        try:
+            val = eval(expr)
+        except ZeroDivisionError:
+            continue
+        return expr_node
+
 def main():
     cfg = generate_structure(has_branches=(random() > 0.5), has_loops=(random() > 0.5))
     print(cfg.to_dot())
+    expr = generate_valid_expression([0.2, 0.5], min_depth=1, max_depth=2).to_string()
+    print('{} = {}'.format(expr, eval(expr)))
 
 if __name__ == '__main__':
     main()
