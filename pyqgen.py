@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+from random import random, randrange
+
 from networkx import DiGraph
 from networkx.drawing.nx_agraph import to_agraph as to_dot, write_dot
 
@@ -97,11 +99,27 @@ class WhileBlock(Block):
         self.condition = condition
         self.body = body
 
-def main():
+def generate_structure(has_branches, has_loops):
     cfg = ControlFlowGraph()
-    while_block = cfg.add_while(cfg.entry)
-    if_block = cfg.add_if(while_block.body, has_else=False, num_elif=2)
+    entry = cfg.entry
+    if has_loops:
+        while_block = cfg.add_while(entry)
+        entry = while_block.body
+    if has_branches:
+        rand = randrange(3)
+        if rand == 0:
+            if_block = cfg.add_if(entry)
+        elif rand == 1:
+            if_block = cfg.add_if(entry, has_else=True)
+        elif rand == 2:
+            has_else = (randrange(2) == 1)
+            num_elif = randrange(1, 3)
+            if_block = cfg.add_if(entry, has_else=has_else, num_elif=num_elif)
     cfg.simplify()
+    return cfg
+
+def main():
+    cfg = generate_structure(has_branches=(random() > 0.5), has_loops=(random() > 0.5))
     print(cfg.to_dot())
 
 if __name__ == '__main__':
